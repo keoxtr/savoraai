@@ -1,7 +1,475 @@
-.env
-.env.local
-.vercel
-node_modules
-dist
-.next
-*.log
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Savora</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <section id="authScreen" class="auth-screen" aria-label="Savora giriş">
+      <div class="auth-brand">
+        <img src="assets/savora-logo.svg" alt="Savora">
+        <h1>Gerçek akışa giriş yap</h1>
+        <p>Kullanıcı adınla giriş yap, paylaşım yap, görsellerini yönet ve doğrulama akışına katıl.</p>
+      </div>
+
+      <div class="auth-card">
+        <div class="auth-tabs" role="tablist" aria-label="Giriş seçenekleri">
+          <button id="loginTab" class="active" type="button">Giriş</button>
+          <button id="registerTab" type="button">Kayıt ol</button>
+        </div>
+
+        <form id="loginForm" class="auth-form">
+          <label for="loginUsername">Kullanıcı adı</label>
+          <input id="loginUsername" autocomplete="username" required>
+          <label for="loginPassword">Şifre</label>
+          <input id="loginPassword" type="password" autocomplete="current-password" required>
+          <button class="primary-button" type="submit">Giriş yap</button>
+          <p class="auth-note">Hesabın yoksa kayıt ol sekmesinden yeni hesap oluşturabilirsin.</p>
+        </form>
+
+        <form id="registerForm" class="auth-form" hidden>
+          <label for="registerName">Ad soyad</label>
+          <input id="registerName" autocomplete="name" required>
+          <label for="registerUsername">Kullanıcı adı</label>
+          <input id="registerUsername" autocomplete="username" required>
+          <label for="registerPassword">Şifre</label>
+          <input id="registerPassword" type="password" autocomplete="new-password" required minlength="6">
+          <label class="agreement-check" for="agreementAccept">
+            <input id="agreementAccept" type="checkbox" required>
+            <span>Sözleşme, KVKK aydınlatma metni ve kullanım kurallarını kabul ediyorum.</span>
+          </label>
+          <button class="primary-button" type="submit">Hesap oluştur</button>
+        </form>
+
+        <p id="authMessage" class="auth-message" aria-live="polite"></p>
+      </div>
+
+      <article class="legal-preview" aria-labelledby="legalTitle">
+        <div class="section-title">
+          <div>
+            <span>Savora sözleşmesi</span>
+            <h2 id="legalTitle">KVKK, kullanım kuralları ve topluluk taahhüdü</h2>
+          </div>
+        </div>
+        <div class="legal-scroll">
+          <h3>1. Amaç</h3>
+          <p>Savora; doğru bilgiye erişimi artırmak, bilgi kirliliğini azaltmak ve kullanıcıların güvenli, saygılı, düzeyli bir ortamda paylaşım yapmasını sağlamak amacıyla tasarlanmıştır.</p>
+          <h3>2. KVKK aydınlatma özeti</h3>
+          <p>6698 sayılı Kişisel Verilerin Korunması Kanunu kapsamında ad soyad, kullanıcı adı, şifre, profil bilgileri, paylaşım, yorum, görsel, şikayet ve moderasyon kayıtları; hesap oluşturma, güvenlik, hizmet sunumu, kötüye kullanımın önlenmesi ve yasal yükümlülüklerin yerine getirilmesi amaçlarıyla işlenebilir.</p>
+          <h3>3. Yasak içerikler</h3>
+          <p>Hakaret, tehdit, taciz, cinsel içerik, nefret söylemi, şiddet çağrısı, kişisel veri ifşası, spam, dolandırıcılık, ahlak dışı veya topluluk güvenliğini bozan içerikler yasaktır.</p>
+          <h3>4. Moderasyon yetkisi</h3>
+          <p>Savora; topluluk kurallarını ihlal eden içerikleri engelleyebilir, görünürlüğünü azaltabilir, admin incelemesine alabilir, kullanıcıyı uyarabilir, hesabı geçici veya kalıcı olarak sınırlandırabilir.</p>
+          <h3>5. Kullanıcı taahhüdü</h3>
+          <p>Kayıt olan kullanıcı; paylaşımlarından sorumlu olduğunu, başkalarının haklarına saygı göstereceğini, doğru kaynak kullanmaya özen göstereceğini ve platform kurallarına uyacağını kabul eder.</p>
+          <p class="legal-note">Bu metin prototip sözleşme taslağıdır. Gerçek yayına geçmeden önce KVKK ve internet hukuku konusunda uzman hukukçu tarafından uyarlanmalıdır.</p>
+        </div>
+      </article>
+    </section>
+
+    <div id="appShell" class="app-shell" hidden>
+      <aside class="sidebar" aria-label="Ana menü">
+        <a class="brand" href="#" aria-label="Savora ana sayfa">
+          <span class="brand-mark">
+            <img src="assets/savora-logo.svg" alt="">
+          </span>
+          <span>
+            <strong>Savora</strong>
+            <small>AI</small>
+          </span>
+        </a>
+
+        <nav class="nav-list" aria-label="Gezinme">
+          <button class="nav-item active" type="button" title="Akış">
+            <span aria-hidden="true">⌂</span>
+            Akış
+          </button>
+          <button class="nav-item" type="button" title="Doğrulamalar">
+            <span aria-hidden="true">✓</span>
+            Doğrulamalar
+          </button>
+          <button class="nav-item" type="button" title="Kaynaklar">
+            <span aria-hidden="true">⌕</span>
+            Kaynaklar
+          </button>
+          <button class="nav-item" type="button" title="Mesajlar">
+            <span aria-hidden="true">✉</span>
+            Mesajlar
+          </button>
+          <button class="nav-item" type="button" title="Gruplar">
+            <span aria-hidden="true">▦</span>
+            Gruplar
+          </button>
+          <button id="adminNavButton" class="nav-item" type="button" title="Admin paneli" hidden>
+            <span aria-hidden="true">⚙</span>
+            Admin
+          </button>
+          <button class="nav-item" type="button" title="Profil">
+            <span aria-hidden="true">◐</span>
+            Profil
+          </button>
+        </nav>
+
+        <button id="themeToggle" class="theme-toggle" type="button" aria-pressed="false">
+          <span aria-hidden="true">◑</span>
+          Karanlık mod
+        </button>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div>
+            <span class="eyebrow">AI destekli sosyal doğruluk ağı</span>
+            <h1>Savora</h1>
+            <p>Paylaşımlar akışa düşer, Savora iddiayı kaynaklarla tarar ve doğrusunu herkesin görebileceği şekilde gönderinin altına ekler.</p>
+          </div>
+          <button id="newPostButton" class="primary-button" type="button">Paylaş</button>
+        </header>
+
+        <section class="control-strip" aria-label="Arama ve bildirimler">
+          <label class="search-box" for="globalSearch">
+            <span>⌕</span>
+            <input id="globalSearch" placeholder="Kişi, grup, konu veya doğrulanmış iddia ara">
+          </label>
+          <div class="notification-box">
+            <strong>Bildirimler</strong>
+            <span id="notificationText">3 yeni doğrulama, 1 arkadaş isteği</span>
+          </div>
+        </section>
+
+        <section class="discover-panel" aria-labelledby="discoverTitle">
+          <div class="section-title">
+            <div>
+              <span>Keşfet</span>
+              <h2 id="discoverTitle">Gündemdeki doğrulamalar</h2>
+            </div>
+          </div>
+          <div class="topic-chips" id="topicChips">
+            <button class="active" type="button" data-topic="Tümü">Tümü</button>
+            <button type="button" data-topic="Gündem">Gündem</button>
+            <button type="button" data-topic="Sağlık">Sağlık</button>
+            <button type="button" data-topic="Ekonomi">Ekonomi</button>
+            <button type="button" data-topic="Bilim">Bilim</button>
+            <button type="button" data-topic="Teknoloji">Teknoloji</button>
+          </div>
+        </section>
+
+        <section class="profile-page" aria-label="Kullanıcı profili">
+          <div id="profileCover" class="profile-cover">
+            <label class="cover-action" for="coverImage">Kapak düzenle</label>
+            <input id="coverImage" type="file" accept="image/*">
+          </div>
+
+          <div class="profile-info">
+            <div class="profile-avatar-wrap">
+              <label id="profileAvatar" class="profile-avatar" for="avatarImage" aria-label="Profil fotoğrafını değiştir">MG</label>
+              <input id="avatarImage" type="file" accept="image/*">
+              <span class="truth-dot" title="Doğrulanmış profil"></span>
+            </div>
+            <div class="profile-title">
+              <h2>Mehmet Güneş</h2>
+              <p>741 bağlantı · İstanbul</p>
+              <span>Bilgi kirliliğine karşı kaynaklı paylaşım yapıyor.</span>
+            </div>
+            <div class="profile-actions">
+              <button id="friendButton" class="primary-button compact" type="button">Arkadaş ekle</button>
+              <button id="messageButton" class="ghost-button" type="button">Mesaj gönder</button>
+              <button class="primary-button compact" type="button">Hikaye ekle</button>
+              <button class="ghost-button" type="button">Profili düzenle</button>
+            </div>
+          </div>
+
+          <nav class="profile-tabs" id="profileTabs" aria-label="Profil sekmeleri">
+            <button class="active" type="button" data-tab="posts">Paylaşımlar</button>
+            <button type="button" data-tab="about">Hakkında</button>
+            <button type="button" data-tab="connections">Bağlantılar</button>
+            <button type="button" data-tab="photos">Fotoğraflar</button>
+            <button type="button" data-tab="checks">Doğrulamalar</button>
+          </nav>
+        </section>
+
+        <section class="profile-tab-panels" aria-label="Profil içerikleri">
+          <article class="tab-panel active" data-panel="posts">
+            <div class="section-title">
+              <div>
+                <span>Profil akışı</span>
+                <h2>Paylaşımlar</h2>
+              </div>
+            </div>
+            <p>Kullanıcının yaptığı paylaşımlar ve AI doğrulama sonuçları aşağıdaki akışta görünür.</p>
+          </article>
+
+          <article class="tab-panel" data-panel="about" hidden>
+            <div class="section-title">
+              <div>
+                <span>Profil bilgileri</span>
+                <h2>Hakkında</h2>
+              </div>
+            </div>
+            <div class="info-grid">
+              <div><strong>Konum</strong><span>İstanbul</span></div>
+              <div><strong>Uzmanlık</strong><span>Kaynaklı paylaşım ve gündem takibi</span></div>
+              <div><strong>Güven rozeti</strong><span id="aboutTrustScore">%76</span></div>
+              <div><strong>Katılım</strong><span>Mayıs 2026</span></div>
+            </div>
+          </article>
+
+          <article class="tab-panel" data-panel="connections" hidden>
+            <div class="section-title">
+              <div>
+                <span>Sosyal ağ</span>
+                <h2>Bağlantılar</h2>
+              </div>
+            </div>
+            <div class="connection-list">
+              <div><span>AD</span><strong>Ayşe Demir</strong><small>Kaynak takipçisi</small></div>
+              <div><span>MK</span><strong>Mert Kaya</strong><small>Gündem grubu üyesi</small></div>
+              <div><span>SA</span><strong>Selin Arı</strong><small>Sağlık doğrulama ağı</small></div>
+            </div>
+          </article>
+
+          <article class="tab-panel" data-panel="photos" hidden>
+            <div class="section-title">
+              <div>
+                <span>Profil galerisi</span>
+                <h2>Fotoğraflar</h2>
+              </div>
+            </div>
+            <div id="tabGalleryGrid" class="gallery-grid"></div>
+          </article>
+
+          <article class="tab-panel" data-panel="checks" hidden>
+            <div class="section-title">
+              <div>
+                <span>AI doğrulama geçmişi</span>
+                <h2>Doğrulamalar</h2>
+              </div>
+            </div>
+            <div id="verificationList" class="verification-list"></div>
+          </article>
+        </section>
+
+        <section id="adminPanel" class="admin-panel" aria-labelledby="adminTitle" hidden>
+          <div class="section-title">
+            <div>
+              <span>Savora yönetim</span>
+              <h2 id="adminTitle">Admin paneli</h2>
+            </div>
+            <button id="closeAdminButton" class="ghost-button" type="button">Kapat</button>
+          </div>
+          <div class="admin-grid">
+            <div>
+              <strong id="adminUserCount">0</strong>
+              <span>Kayıtlı kullanıcı</span>
+            </div>
+            <div>
+              <strong id="adminPostCount">0</strong>
+              <span>Paylaşım</span>
+            </div>
+            <div>
+              <strong id="adminImageCount">0</strong>
+              <span>Galeri görseli</span>
+            </div>
+            <div>
+              <strong id="adminReportCount">0</strong>
+              <span>İnceleme kuyruğu</span>
+            </div>
+          </div>
+          <div id="adminUserList" class="admin-list"></div>
+          <div class="moderation-queue">
+            <h3>Şikayet ve doğrulama kuyruğu</h3>
+            <div id="adminQueueList"></div>
+          </div>
+        </section>
+
+        <section class="gallery-panel" aria-labelledby="galleryTitle">
+          <div class="section-title">
+            <div>
+              <span>Profil galerisi</span>
+              <h2 id="galleryTitle">Görseller</h2>
+            </div>
+            <label class="upload-button" for="galleryImage">Galeriye ekle</label>
+            <input id="galleryImage" type="file" accept="image/*">
+          </div>
+          <div id="galleryGrid" class="gallery-grid" aria-live="polite"></div>
+        </section>
+
+        <section class="social-tools" aria-label="Sosyal araçlar">
+          <article class="tool-panel">
+            <div class="section-title">
+              <div>
+                <span>Özel mesajlar</span>
+                <h2>Yakın konuşmalar</h2>
+              </div>
+              <button class="icon-button" type="button" title="Yeni mesaj">+</button>
+            </div>
+            <div class="message-list">
+              <button type="button">
+                <strong>Ayşe Demir</strong>
+                <span>Kaynağı bana da atar mısın?</span>
+              </button>
+              <button type="button">
+                <strong>Mert Kaya</strong>
+                <span>Bu paylaşımı grupta tartışalım.</span>
+              </button>
+            </div>
+          </article>
+
+          <article class="tool-panel">
+            <div class="section-title">
+              <div>
+                <span>Grup sayfaları</span>
+                <h2>Topluluklar</h2>
+              </div>
+              <button class="icon-button" type="button" title="Grup oluştur">+</button>
+            </div>
+            <div class="group-list">
+              <div>
+                <strong>Gündem Doğrulama</strong>
+                <span>12.4 bin üye · 38 yeni iddia</span>
+              </div>
+              <div>
+                <strong>Bilim ve Sağlık</strong>
+                <span>8.1 bin üye · uzman kaynaklı</span>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="composer" aria-labelledby="composerTitle">
+          <div class="composer-avatar" aria-hidden="true">MG</div>
+          <form id="postForm" class="composer-form">
+            <label id="composerTitle" for="postText">Bir iddia, haber ya da düşünce paylaş</label>
+            <textarea id="postText" name="postText" rows="4" maxlength="360" placeholder="Örn: Türkiye'de elektrikli araç satışları geçen yıl iki katına çıktı."></textarea>
+            <p id="composerWarning" class="moderation-warning" hidden></p>
+            <div class="composer-meta">
+              <input id="postLink" name="postLink" type="url" placeholder="Haber/link ekle">
+              <select id="postTopic" name="postTopic" aria-label="Konu seç">
+                <option>Gündem</option>
+                <option>Sağlık</option>
+                <option>Ekonomi</option>
+                <option>Bilim</option>
+                <option>Teknoloji</option>
+              </select>
+            </div>
+            <div id="imagePreview" class="image-preview" hidden>
+              <img alt="Seçilen paylaşım görseli">
+              <button id="removeImageButton" type="button">Görseli kaldır</button>
+            </div>
+            <div class="composer-actions">
+              <div class="composer-tools">
+                <span id="charCount">0/360</span>
+                <label class="upload-button" for="postImage">Görsel ekle</label>
+                <input id="postImage" name="postImage" type="file" accept="image/*">
+              </div>
+              <button class="secondary-button" type="submit">Yayınla ve doğrulat</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="feed-header" aria-label="Akış özeti">
+          <div>
+            <span class="metric-value" id="checkedCount">3</span>
+            <span class="metric-label">doğrulanmış paylaşım</span>
+          </div>
+          <div>
+            <span class="metric-value">%82</span>
+            <span class="metric-label">ortalama güven</span>
+          </div>
+          <div>
+            <span class="metric-value">4</span>
+            <span class="metric-label">kaynak türü</span>
+          </div>
+        </section>
+
+        <section id="feed" class="feed" aria-live="polite"></section>
+      </main>
+
+      <section id="reportDialog" class="report-dialog" hidden aria-label="İçerik şikayeti">
+        <form id="reportForm" class="report-card">
+          <div class="section-title">
+            <div>
+              <span>Güvenlik bildirimi</span>
+              <h2>İçeriği şikayet et</h2>
+            </div>
+            <button id="closeReportButton" class="ghost-button" type="button">Kapat</button>
+          </div>
+          <label for="reportReason">Şikayet sebebi</label>
+          <select id="reportReason" required>
+            <option>Yanlış bilgi</option>
+            <option>Hakaret / taciz</option>
+            <option>Tehdit</option>
+            <option>Cinsel içerik</option>
+            <option>Nefret söylemi</option>
+            <option>Şiddet</option>
+            <option>Spam / dolandırıcılık</option>
+            <option>Kişisel bilgi paylaşımı</option>
+            <option>Diğer</option>
+          </select>
+          <label for="reportDetail">Açıklama</label>
+          <textarea id="reportDetail" rows="3" placeholder="İsteğe bağlı açıklama"></textarea>
+          <button class="primary-button" type="submit">Şikayeti gönder</button>
+        </form>
+      </section>
+
+      <aside class="insight-panel" aria-label="Doğrulama paneli">
+        <div class="panel-logo">
+          <img src="assets/savora-logo.svg" alt="Savora">
+        </div>
+
+        <div class="panel-visual">
+          <div class="scan-ring"></div>
+          <div class="scan-card">
+            <span>AI</span>
+            <strong>Kaynak tarama</strong>
+          </div>
+        </div>
+
+        <section class="trust-score">
+          <span>Canlı güven endeksi</span>
+          <strong>%82</strong>
+          <div class="score-bar"><i></i></div>
+        </section>
+
+        <section class="trust-score">
+          <span>Profil güven rozeti</span>
+          <strong id="trustBadgeScore">%76</strong>
+          <div class="score-bar"><i id="trustBadgeBar"></i></div>
+        </section>
+
+        <section class="panel-section">
+          <h2>Doğrulama adımları</h2>
+          <ol class="check-steps">
+            <li>Paylaşımdaki ana iddia çıkarılır.</li>
+            <li>Güvenilir kaynaklar karşılaştırılır.</li>
+            <li>Sonuç, kanıt ve doğru ifade eklenir.</li>
+          </ol>
+        </section>
+
+        <section class="panel-section">
+          <h2>Örnek kaynaklar</h2>
+          <div class="source-list">
+            <span>Resmi kurumlar</span>
+            <span>Haber arşivleri</span>
+            <span>Akademik yayınlar</span>
+            <span>Veri platformları</span>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h2>Kaynak puanları</h2>
+          <div class="source-ratings">
+            <span><strong>Resmi kurum</strong> %96</span>
+            <span><strong>Akademik yayın</strong> %92</span>
+            <span><strong>Haber arşivi</strong> %78</span>
+            <span><strong>Sosyal medya</strong> %42</span>
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
