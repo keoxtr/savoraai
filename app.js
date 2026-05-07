@@ -1,0 +1,5 @@
+OPENAI_API_KEY=sk-your_openai_key_here
+OPENAI_MODEL=gpt-5.4-mini
+TAVILY_API_KEY=tvly-your_tavily_key_here
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
