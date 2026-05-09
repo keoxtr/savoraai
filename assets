@@ -1,1 +1,37 @@
 
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 96" role="img" aria-labelledby="title desc">
+  <title id="title">Savora logo dark</title>
+  <desc id="desc">Savora mark for dark theme</desc>
+  <defs>
+    <linearGradient id="markGradient" x1="10" y1="12" x2="80" y2="82" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6aa98a"/>
+      <stop offset="1" stop-color="#86a6cf"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" fill-rule="evenodd">
+    <path fill="url(#markGradient)" d="M48 8c22.091 0 40 17.909 40 40S70.091 88 48 88 8 70.091 8 48 25.909 8 48 8Z"/>
+    <path fill="#fff" d="M47.6 22.5c11.46 0 20.58 5.63 24.5 14.75l-11.18 5.12c-2.22-5.06-7.04-8.02-13.32-8.02-8.1 0-13.96 5.62-13.96 13.65 0 8.15 5.86 13.65 13.96 13.65 6.28 0 11.1-2.96 13.32-8.02l11.18 5.12C68.18 67.87 59.06 73.5 47.6 73.5 32.42 73.5 21 62.59 21 48s11.42-25.5 26.6-25.5Z"/>
+    <path fill="#fff" d="M47.5 40.25c4.28 0 7.75 3.47 7.75 7.75s-3.47 7.75-7.75 7.75-7.75-3.47-7.75-7.75 3.47-7.75 7.75-7.75Z"/>
+    <path fill="#fff" d="M76 24.75 85.25 48 76 71.25 66.75 48z" opacity=".92"/>
+    <text x="112" y="61" fill="#edf2ef" font-family="Inter, Arial, sans-serif" font-size="42" font-weight="850" letter-spacing="0">Savora</text>
+    <text x="273" y="61" fill="#6aa98a" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="850" letter-spacing="0">AI</text>
+  </g>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 96" role="img" aria-labelledby="title desc">
+  <title id="title">Savora logo</title>
+  <desc id="desc">Savora mark for an AI assisted social truth platform</desc>
+  <defs>
+    <linearGradient id="markGradient" x1="10" y1="12" x2="80" y2="82" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#16805d"/>
+      <stop offset="1" stop-color="#2b65b1"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" fill-rule="evenodd">
+    <path fill="url(#markGradient)" d="M48 8c22.091 0 40 17.909 40 40S70.091 88 48 88 8 70.091 8 48 25.909 8 48 8Z"/>
+    <path fill="#fff" d="M47.6 22.5c11.46 0 20.58 5.63 24.5 14.75l-11.18 5.12c-2.22-5.06-7.04-8.02-13.32-8.02-8.1 0-13.96 5.62-13.96 13.65 0 8.15 5.86 13.65 13.96 13.65 6.28 0 11.1-2.96 13.32-8.02l11.18 5.12C68.18 67.87 59.06 73.5 47.6 73.5 32.42 73.5 21 62.59 21 48s11.42-25.5 26.6-25.5Z"/>
+    <path fill="#fff" d="M47.5 40.25c4.28 0 7.75 3.47 7.75 7.75s-3.47 7.75-7.75 7.75-7.75-3.47-7.75-7.75 3.47-7.75 7.75-7.75Z"/>
+    <path fill="#fff" d="M76 24.75 85.25 48 76 71.25 66.75 48z" opacity=".92"/>
+    <text x="112" y="61" fill="#1c2522" font-family="Inter, Arial, sans-serif" font-size="42" font-weight="850" letter-spacing="0">Savora</text>
+    <text x="273" y="61" fill="#16805d" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="850" letter-spacing="0">AI</text>
+  </g>
+</svg>
