@@ -68,7 +68,7 @@ const storageKey = "savora-users";
 const sessionKey = "savora-current-user";
 const themeKey = "savora-theme";
 const aiUsageKey = "savora-ai-usage";
-const dailyAiLimit = 3;
+const dailyAiLimit = 5;
 
 const moderationRules = [
   { type: "Hakaret / taciz", words: ["aptal", "salak", "gerizekalı", "pislik"] },
@@ -105,6 +105,15 @@ function getAiUsageKey() {
   return `${aiUsageKey}-${currentUser?.username || "guest"}`;
 }
 
+function getUserAiLimit(user = currentUser) {
+  if (user?.role === "admin") {
+    return Infinity;
+  }
+
+  const customLimit = Number(user?.aiLimit);
+  return Number.isFinite(customLimit) && customLimit >= 0 ? customLimit : dailyAiLimit;
+}
+
 function getAiUsage() {
   try {
     const usage = JSON.parse(localStorage.getItem(getAiUsageKey()) || "{}");
@@ -115,10 +124,22 @@ function getAiUsage() {
 }
 
 function getRemainingAiChecks() {
-  return Math.max(0, dailyAiLimit - getAiUsage());
+  const limit = getUserAiLimit(currentUser);
+
+  if (limit === Infinity) {
+    return Infinity;
+  }
+
+  return Math.max(0, limit - getAiUsage());
 }
 
 function useAiCheck() {
+  const limit = getUserAiLimit(currentUser);
+
+  if (limit === Infinity) {
+    return true;
+  }
+
   const count = getAiUsage() + 1;
 
   try {
@@ -127,7 +148,7 @@ function useAiCheck() {
     // Kota bilgisi kaydedilemezse sadece mevcut oturumda devam eder.
   }
 
-  return count <= dailyAiLimit;
+  return count <= limit;
 }
 
 async function fetchJsonWithTimeout(url, options, timeout = 10000) {
@@ -300,10 +321,31 @@ function renderAdminPanel() {
   adminUserList.innerHTML = "";
   users.forEach((user) => {
     const row = document.createElement("div");
+    row.className = "admin-user-row";
+    const limit = getUserAiLimit(user);
+    let usedToday = 0;
+
+    try {
+      const usage = JSON.parse(localStorage.getItem(`${aiUsageKey}-${user.username}`) || "{}");
+      usedToday = usage.date === todayKey() ? Number(usage.count || 0) : 0;
+    } catch {
+      usedToday = 0;
+    }
+
     row.innerHTML = `
       <strong>${escapeHtml(user.name)}</strong>
       <span>@${escapeHtml(user.username)} · ${user.role === "admin" ? "admin" : "üye"}</span>
     `;
+    row.insertAdjacentHTML("beforeend", `
+      <label class="credit-control">
+        <span>${limit === Infinity ? "AI kredi: limitsiz" : `Bugün ${usedToday}/${limit}`}</span>
+        ${
+          user.role === "admin"
+            ? `<input value="Limitsiz" disabled>`
+            : `<input type="number" min="0" max="999" step="1" value="${Number.isFinite(Number(user.aiLimit)) ? Number(user.aiLimit) : dailyAiLimit}" data-ai-limit-user="${escapeHtml(user.username)}">`
+        }
+      </label>
+    `);
     adminUserList.append(row);
   });
 
@@ -642,8 +684,11 @@ form?.addEventListener("submit", async (event) => {
   }
 
   if (composerWarning) {
-    composerWarning.textContent = getRemainingAiChecks() > 0
-      ? `Paylaşım yayınlandı. Bugün kalan ücretsiz AI doğrulama hakkın: ${getRemainingAiChecks()}.`
+    const remainingAiChecks = getRemainingAiChecks();
+    composerWarning.textContent = remainingAiChecks === Infinity
+      ? "Paylaşım yayınlandı. Admin hesabında AI doğrulama limiti yok."
+      : remainingAiChecks > 0
+      ? `Paylaşım yayınlandı. Bugün kalan ücretsiz AI doğrulama hakkın: ${remainingAiChecks}.`
       : "Paylaşım yayınlandı. Bugünkü ücretsiz AI doğrulama hakkın dolduğu için yerel ön kontrol uygulanacak.";
     composerWarning.hidden = false;
   }
@@ -908,7 +953,7 @@ registerForm?.addEventListener("submit", (event) => {
     return;
   }
 
-  const user = { name, username, password, role: "member" };
+  const user = { name, username, password, role: "member", aiLimit: dailyAiLimit };
   users.push(user);
   saveUsers(users);
   showAuthMessage("Hesabın oluşturuldu.", "success");
@@ -1004,6 +1049,32 @@ adminNavButton?.addEventListener("click", () => {
     adminPanel.hidden = false;
     renderAdminPanel();
   }
+});
+
+adminUserList?.addEventListener("change", (event) => {
+  const input = event.target.closest("[data-ai-limit-user]");
+
+  if (!input) {
+    return;
+  }
+
+  const username = input.dataset.aiLimitUser;
+  const nextLimit = Math.max(0, Math.min(999, Number(input.value || dailyAiLimit)));
+  const users = getUsers().map((user) => (
+    user.username === username ? { ...user, aiLimit: nextLimit } : user
+  ));
+
+  saveUsers(users);
+
+  if (currentUser?.username === username) {
+    currentUser = users.find((user) => user.username === username) || currentUser;
+  }
+
+  if (notificationText) {
+    notificationText.textContent = `${username} için günlük AI kredi limiti ${nextLimit} yapıldı.`;
+  }
+
+  renderAdminPanel();
 });
 
 closeAdminButton?.addEventListener("click", () => {
