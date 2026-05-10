@@ -67,6 +67,8 @@ const moderationQueue = [
 const storageKey = "savora-users";
 const sessionKey = "savora-current-user";
 const themeKey = "savora-theme";
+const aiUsageKey = "savora-ai-usage";
+const dailyAiLimit = 3;
 
 const moderationRules = [
   { type: "Hakaret / taciz", words: ["aptal", "salak", "gerizekalı", "pislik"] },
@@ -95,27 +97,78 @@ function moderateContent(text) {
   };
 }
 
-async function moderateContentRemote(text) {
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getAiUsageKey() {
+  return `${aiUsageKey}-${currentUser?.username || "guest"}`;
+}
+
+function getAiUsage() {
   try {
-    const response = await fetch("/api/moderate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text })
-    });
-
-    if (!response.ok) {
-      throw new Error("Moderasyon API yanıt vermedi.");
-    }
-
-    return await response.json();
+    const usage = JSON.parse(localStorage.getItem(getAiUsageKey()) || "{}");
+    return usage.date === todayKey() ? Number(usage.count || 0) : 0;
   } catch {
-    return moderateContent(text);
+    return 0;
   }
 }
 
-async function verifyPostRemote(post) {
+function getRemainingAiChecks() {
+  return Math.max(0, dailyAiLimit - getAiUsage());
+}
+
+function useAiCheck() {
+  const count = getAiUsage() + 1;
+
   try {
-    const response = await fetch("/api/verify-post", {
+    localStorage.setItem(getAiUsageKey(), JSON.stringify({ date: todayKey(), count }));
+  } catch {
+    // Kota bilgisi kaydedilemezse sadece mevcut oturumda devam eder.
+  }
+
+  return count <= dailyAiLimit;
+}
+
+async function fetchJsonWithTimeout(url, options, timeout = 10000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      return {
+        error: true,
+        status: response.status,
+        message: data.message || data.error || "API yanıt vermedi."
+      };
+    }
+
+    return data;
+  } catch (error) {
+    return {
+      error: true,
+      message: error.name === "AbortError" ? "AI yanıtı zaman aşımına uğradı." : "API bağlantısı kurulamadı."
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function moderateContentRemote(text) {
+  const response = await fetchJsonWithTimeout("/api/moderate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text })
+    }, 5000);
+
+  return response.error ? moderateContent(text) : response;
+}
+
+async function verifyPostRemote(post) {
+  return fetchJsonWithTimeout("/api/verify-post", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -124,16 +177,7 @@ async function verifyPostRemote(post) {
         topic: post.topic,
         postId: post.id || null
       })
-    });
-
-    if (!response.ok) {
-      throw new Error("Doğrulama API yanıt vermedi.");
-    }
-
-    return await response.json();
-  } catch {
-    return null;
-  }
+    }, 12000);
 }
 
 async function analyzeImageRemote(post) {
@@ -141,21 +185,11 @@ async function analyzeImageRemote(post) {
     return null;
   }
 
-  try {
-    const response = await fetch("/api/analyze-image", {
+  return fetchJsonWithTimeout("/api/analyze-image", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ image: post.image, text: post.text })
-    });
-
-    if (!response.ok) {
-      throw new Error("Görsel API yanıt vermedi.");
-    }
-
-    return await response.json();
-  } catch {
-    return null;
-  }
+    }, 12000);
 }
 
 function applyTheme(theme) {
@@ -587,13 +621,15 @@ function renderVerifications() {
 form?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const text = textarea.value.trim();
+  const submitButton = form.querySelector('button[type="submit"]');
+  const originalButtonText = submitButton?.textContent || "Yayınla ve doğrulat";
 
   if (!text && !selectedImage) {
     textarea.focus();
     return;
   }
 
-  const moderation = await moderateContentRemote(text);
+  const moderation = moderateContent(text);
 
   if (moderation.blocked) {
     if (composerWarning) {
@@ -606,7 +642,15 @@ form?.addEventListener("submit", async (event) => {
   }
 
   if (composerWarning) {
-    composerWarning.hidden = true;
+    composerWarning.textContent = getRemainingAiChecks() > 0
+      ? `Paylaşım yayınlandı. Bugün kalan ücretsiz AI doğrulama hakkın: ${getRemainingAiChecks()}.`
+      : "Paylaşım yayınlandı. Bugünkü ücretsiz AI doğrulama hakkın dolduğu için yerel ön kontrol uygulanacak.";
+    composerWarning.hidden = false;
+  }
+
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent = "Yayınlandı";
   }
 
   const newPost = {
@@ -639,6 +683,24 @@ form?.addEventListener("submit", async (event) => {
   renderVerifications();
   updateTrustBadge();
 
+  if (!useAiCheck()) {
+    newPost.verification = {
+      type: "mixed",
+      label: "Ücretsiz limit doldu",
+      confidence: 40,
+      truth: "Bugünkü ücretsiz gerçek AI doğrulama hakkı doldu. Savora bu paylaşımı şimdilik yerel ön kontrolle işaretledi; yarın yeni ücretsiz hak tanımlanır.",
+      sources: ["Ücretsiz günlük limit", "Yerel ön kontrol"]
+    };
+    newPost.verificationPending = false;
+    renderFeed();
+    renderVerifications();
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = originalButtonText;
+    }
+    return;
+  }
+
   const [verification, imageAnalysis] = await Promise.all([
     verifyPostRemote(newPost),
     analyzeImageRemote(newPost)
@@ -652,6 +714,17 @@ form?.addEventListener("submit", async (event) => {
       truth: verification.truth || "AI doğrulama sonucu alındı.",
       sources: verification.sources || ["AI doğrulama"]
     };
+  } else {
+    const aiMessage = verification?.message || "Canlı AI API yanıt vermedi. Vercel'de api klasörü, OPENAI_API_KEY ve son deploy kontrol edilmeli.";
+    newPost.verification = {
+      type: "mixed",
+      label: "AI bağlantısı yok",
+      confidence: 0,
+      truth: aiMessage.includes("quota") || aiMessage.includes("429")
+        ? "Ücretsiz AI sağlayıcısının günlük kotası veya yoğunluk limiti dolduğu için gerçek AI yanıtı alınamadı. Bir süre sonra tekrar denenebilir."
+        : aiMessage,
+      sources: ["Savora sistem kontrolü"]
+    };
   }
 
   if (imageAnalysis && !imageAnalysis.error) {
@@ -661,6 +734,11 @@ form?.addEventListener("submit", async (event) => {
   newPost.verificationPending = false;
   renderFeed();
   renderVerifications();
+
+  if (submitButton) {
+    submitButton.disabled = false;
+    submitButton.textContent = originalButtonText;
+  }
 });
 
 textarea?.addEventListener("input", updateCounter);
