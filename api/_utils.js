@@ -14,6 +14,10 @@ export function getOpenAI() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 }
 
+export function getOpenRouterKey() {
+  return process.env.OPENROUTER_API_KEY || "";
+}
+
 export function getModelCandidates() {
   return [
     process.env.OPENAI_MODEL,
@@ -35,6 +39,67 @@ export async function createResponseWithFallback(openai, payload) {
   }
 
   throw lastError;
+}
+
+export function parseJsonText(text = "{}") {
+  try {
+    return JSON.parse(text);
+  } catch {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+
+    if (start >= 0 && end > start) {
+      return JSON.parse(text.slice(start, end + 1));
+    }
+
+    throw new Error("AI JSON yanıtı okunamadı.");
+  }
+}
+
+export async function createFreeAiJson({ system, user, image = "" }) {
+  const apiKey = getOpenRouterKey();
+
+  if (!apiKey) {
+    return null;
+  }
+
+  const content = image
+    ? [
+        { type: "text", text: user },
+        { type: "image_url", image_url: { url: image } }
+      ]
+    : user;
+
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://savoraai.com",
+      "X-Title": "SavoraAI"
+    },
+    body: JSON.stringify({
+      model: process.env.OPENROUTER_MODEL || "openrouter/free",
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content }
+      ],
+      response_format: { type: "json_object" }
+    })
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error?.message || data.message || "Ücretsiz AI sağlayıcısı yanıt vermedi.");
+  }
+
+  const text = data.choices?.[0]?.message?.content || "{}";
+  return {
+    parsed: parseJsonText(text),
+    model: data.model || process.env.OPENROUTER_MODEL || "openrouter/free",
+    provider: "openrouter-free"
+  };
 }
 
 export function getSupabaseAdmin() {
