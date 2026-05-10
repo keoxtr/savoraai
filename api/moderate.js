@@ -1,4 +1,12 @@
-import { createResponseWithFallback, fallbackModeration, getOpenAI, json } from "./_utils.js";
+import {
+  createFreeAiJson,
+  createResponseWithFallback,
+  fallbackModeration,
+  getOpenAI,
+  getOpenRouterKey,
+  json,
+  parseJsonText
+} from "./_utils.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -8,25 +16,28 @@ export default async function handler(req, res) {
   const { text = "" } = req.body || {};
   const fallback = fallbackModeration(text);
   const openai = getOpenAI();
+  const hasFreeAi = Boolean(getOpenRouterKey());
 
-  if (!openai) {
+  if (!openai && !hasFreeAi) {
     return json(res, 200, { ...fallback, provider: "local", configured: false });
   }
 
+  const system = "Turkce sosyal medya icerigini Savora topluluk kurallarina gore degerlendir. Hakaret, tehdit, taciz, cinsel icerik, nefret soylemi, siddet cagrisi, kisisel veri ifsasi, spam ve dolandiricilik risklerini yakala. Sadece gecerli JSON dondur.";
+  const user = `Icerik: ${text}\n\nJSON semasi: {"blocked":boolean,"reason":"Temiz|Hakaret / taciz|Tehdit|Cinsel icerik|Nefret soylemi|Siddet|Spam / dolandiricilik|Kisisel bilgi paylasimi|Diger","message":"kisa kullanici mesaji","risk":0-100}`;
+
   try {
+    if (hasFreeAi) {
+      const result = await createFreeAiJson({ system, user });
+      return json(res, 200, { ...result.parsed, provider: result.provider, configured: true, model: result.model });
+    }
+
     const { response, model } = await createResponseWithFallback(openai, {
       input: [
-        {
-          role: "system",
-          content: "Türkçe sosyal medya içeriğini Savora topluluk kurallarına göre değerlendir. Hakaret, tehdit, taciz, cinsel içerik, nefret söylemi, şiddet çağrısı, kişisel veri ifşası, spam ve dolandırıcılık risklerini yakala. Sadece geçerli JSON döndür."
-        },
-        {
-          role: "user",
-          content: `İçerik: ${text}\n\nJSON şeması: {"blocked":boolean,"reason":"Temiz|Hakaret / taciz|Tehdit|Cinsel içerik|Nefret söylemi|Şiddet|Spam / dolandırıcılık|Kişisel bilgi paylaşımı|Diğer","message":"kısa kullanıcı mesajı","risk":0-100}`
-        }
+        { role: "system", content: system },
+        { role: "user", content: user }
       ]
     });
-    const parsed = JSON.parse(response.output_text);
+    const parsed = parseJsonText(response.output_text);
     return json(res, 200, { ...parsed, provider: "openai", configured: true, model });
   } catch (error) {
     return json(res, 200, { ...fallback, provider: "fallback", configured: true, warning: error.message });
