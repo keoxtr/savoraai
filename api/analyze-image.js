@@ -1,4 +1,11 @@
-import { createResponseWithFallback, getOpenAI, json } from "./_utils.js";
+import {
+  createFreeAiJson,
+  createResponseWithFallback,
+  getOpenAI,
+  getOpenRouterKey,
+  json,
+  parseJsonText
+} from "./_utils.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -7,28 +14,39 @@ export default async function handler(req, res) {
 
   const { image = "", text = "" } = req.body || {};
   const openai = getOpenAI();
+  const hasFreeAi = Boolean(getOpenRouterKey());
 
-  if (!openai || !image) {
+  if ((!openai && !hasFreeAi) || !image) {
     return json(res, 200, {
-      configured: Boolean(openai),
+      configured: Boolean(openai || hasFreeAi),
       provider: "demo",
-      summary: "Görsel analizi için OPENAI_API_KEY ve görsel verisi gerekir.",
+      summary: "Gorsel analizi icin OPENROUTER_API_KEY ve gorsel verisi gerekir.",
       extractedText: "",
-      risk: "İnceleme gerekli"
+      risk: "Inceleme gerekli"
     });
   }
 
+  const system = "Gorseldeki yazilari, baglami ve iddia riskini Turkce analiz et. Sadece JSON dondur.";
+  const user = `Paylasim metni: ${text}\nJSON semasi: {"summary":"kisa analiz","extractedText":"gorselde okunan yazilar","risk":"Temiz|Baglam disi|Manipulasyon suphesi|Inceleme gerekli"}`;
+
   try {
+    if (hasFreeAi) {
+      const result = await createFreeAiJson({ system, user, image });
+      return json(res, 200, {
+        ...result.parsed,
+        configured: true,
+        provider: result.provider,
+        model: result.model
+      });
+    }
+
     const { response, model } = await createResponseWithFallback(openai, {
       input: [
-        {
-          role: "system",
-          content: "Görseldeki yazıları, bağlamı ve iddia riskini Türkçe analiz et. Sadece JSON döndür."
-        },
+        { role: "system", content: system },
         {
           role: "user",
           content: [
-            { type: "input_text", text: `Paylaşım metni: ${text}\nJSON şeması: {"summary":"kısa analiz","extractedText":"görselde okunan yazılar","risk":"Temiz|Bağlam dışı|Manipülasyon şüphesi|İnceleme gerekli"}` },
+            { type: "input_text", text: user },
             { type: "input_image", image_url: image }
           ]
         }
@@ -36,7 +54,7 @@ export default async function handler(req, res) {
     });
 
     return json(res, 200, {
-      ...JSON.parse(response.output_text),
+      ...parseJsonText(response.output_text),
       configured: true,
       provider: "openai",
       model
