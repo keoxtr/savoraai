@@ -825,6 +825,34 @@ button {
   padding: 10px 12px;
 }
 
+.admin-list .admin-user-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(110px, auto) minmax(140px, auto);
+  align-items: center;
+}
+
+.credit-control {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.credit-control input {
+  width: 120px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: var(--soft);
+  color: var(--text);
+  font-weight: 800;
+}
+
+.credit-control input:disabled {
+  opacity: 0.72;
+}
+
 .moderation-queue {
   display: grid;
   gap: 10px;
