@@ -72,8 +72,6 @@ const moderationQueue = [
 const storageKey = "savora-users";
 const sessionKey = "savora-current-user";
 const themeKey = "savora-theme";
-const aiUsageKey = "savora-ai-usage";
-const dailyAiLimit = 5;
 
 const moderationRules = [
   { type: "Hakaret / taciz", words: ["aptal", "salak", "gerizekalı", "pislik"] },
@@ -102,99 +100,27 @@ function moderateContent(text) {
   };
 }
 
-function todayKey() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function getAiUsageKey() {
-  return `${aiUsageKey}-${currentUser?.username || "guest"}`;
-}
-
-function getUserAiLimit(user = currentUser) {
-  if (user?.role === "admin") {
-    return Infinity;
-  }
-
-  const customLimit = Number(user?.aiLimit);
-  return Number.isFinite(customLimit) && customLimit >= 0 ? customLimit : dailyAiLimit;
-}
-
-function getAiUsage() {
-  try {
-    const usage = JSON.parse(localStorage.getItem(getAiUsageKey()) || "{}");
-    return usage.date === todayKey() ? Number(usage.count || 0) : 0;
-  } catch {
-    return 0;
-  }
-}
-
-function getRemainingAiChecks() {
-  const limit = getUserAiLimit(currentUser);
-
-  if (limit === Infinity) {
-    return Infinity;
-  }
-
-  return Math.max(0, limit - getAiUsage());
-}
-
-function useAiCheck() {
-  const limit = getUserAiLimit(currentUser);
-
-  if (limit === Infinity) {
-    return true;
-  }
-
-  const count = getAiUsage() + 1;
-
-  try {
-    localStorage.setItem(getAiUsageKey(), JSON.stringify({ date: todayKey(), count }));
-  } catch {
-    // Kota bilgisi kaydedilemezse sadece mevcut oturumda devam eder.
-  }
-
-  return count <= limit;
-}
-
-async function fetchJsonWithTimeout(url, options, timeout = 10000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      return {
-        error: true,
-        status: response.status,
-        message: data.message || data.error || "API yanıt vermedi."
-      };
-    }
-
-    return data;
-  } catch (error) {
-    return {
-      error: true,
-      message: error.name === "AbortError" ? "AI yanıtı zaman aşımına uğradı." : "API bağlantısı kurulamadı."
-    };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 async function moderateContentRemote(text) {
-  const response = await fetchJsonWithTimeout("/api/moderate", {
+  try {
+    const response = await fetch("/api/moderate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text })
-    }, 5000);
+    });
 
-  return response.error ? moderateContent(text) : response;
+    if (!response.ok) {
+      throw new Error("Moderasyon API yanıt vermedi.");
+    }
+
+    return await response.json();
+  } catch {
+    return moderateContent(text);
+  }
 }
 
 async function verifyPostRemote(post) {
-  return fetchJsonWithTimeout("/api/verify-post", {
+  try {
+    const response = await fetch("/api/verify-post", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -203,7 +129,16 @@ async function verifyPostRemote(post) {
         topic: post.topic,
         postId: post.id || null
       })
-    }, 12000);
+    });
+
+    if (!response.ok) {
+      throw new Error("Doğrulama API yanıt vermedi.");
+    }
+
+    return await response.json();
+  } catch {
+    return null;
+  }
 }
 
 async function analyzeImageRemote(post) {
@@ -211,11 +146,21 @@ async function analyzeImageRemote(post) {
     return null;
   }
 
-  return fetchJsonWithTimeout("/api/analyze-image", {
+  try {
+    const response = await fetch("/api/analyze-image", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ image: post.image, text: post.text })
-    }, 12000);
+    });
+
+    if (!response.ok) {
+      throw new Error("Görsel API yanıt vermedi.");
+    }
+
+    return await response.json();
+  } catch {
+    return null;
+  }
 }
 
 function applyTheme(theme) {
@@ -326,31 +271,10 @@ function renderAdminPanel() {
   adminUserList.innerHTML = "";
   users.forEach((user) => {
     const row = document.createElement("div");
-    row.className = "admin-user-row";
-    const limit = getUserAiLimit(user);
-    let usedToday = 0;
-
-    try {
-      const usage = JSON.parse(localStorage.getItem(`${aiUsageKey}-${user.username}`) || "{}");
-      usedToday = usage.date === todayKey() ? Number(usage.count || 0) : 0;
-    } catch {
-      usedToday = 0;
-    }
-
     row.innerHTML = `
       <strong>${escapeHtml(user.name)}</strong>
       <span>@${escapeHtml(user.username)} · ${user.role === "admin" ? "admin" : "üye"}</span>
     `;
-    row.insertAdjacentHTML("beforeend", `
-      <label class="credit-control">
-        <span>${limit === Infinity ? "AI kredi: limitsiz" : `Bugün ${usedToday}/${limit}`}</span>
-        ${
-          user.role === "admin"
-            ? `<input value="Limitsiz" disabled>`
-            : `<input type="number" min="0" max="999" step="1" value="${Number.isFinite(Number(user.aiLimit)) ? Number(user.aiLimit) : dailyAiLimit}" data-ai-limit-user="${escapeHtml(user.username)}">`
-        }
-      </label>
-    `);
     adminUserList.append(row);
   });
 
@@ -668,15 +592,13 @@ function renderVerifications() {
 form?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const text = textarea.value.trim();
-  const submitButton = form.querySelector('button[type="submit"]');
-  const originalButtonText = submitButton?.textContent || "Yayınla ve doğrulat";
 
   if (!text && !selectedImage) {
     textarea.focus();
     return;
   }
 
-  const moderation = moderateContent(text);
+  const moderation = await moderateContentRemote(text);
 
   if (moderation.blocked) {
     if (composerWarning) {
@@ -689,18 +611,7 @@ form?.addEventListener("submit", async (event) => {
   }
 
   if (composerWarning) {
-    const remainingAiChecks = getRemainingAiChecks();
-    composerWarning.textContent = remainingAiChecks === Infinity
-      ? "Paylaşım yayınlandı. Admin hesabında AI doğrulama limiti yok."
-      : remainingAiChecks > 0
-      ? `Paylaşım yayınlandı. Bugün kalan ücretsiz AI doğrulama hakkın: ${remainingAiChecks}.`
-      : "Paylaşım yayınlandı. Bugünkü ücretsiz AI doğrulama hakkın dolduğu için yerel ön kontrol uygulanacak.";
-    composerWarning.hidden = false;
-  }
-
-  if (submitButton) {
-    submitButton.disabled = true;
-    submitButton.textContent = "Yayınlandı";
+    composerWarning.hidden = true;
   }
 
   const newPost = {
@@ -733,24 +644,6 @@ form?.addEventListener("submit", async (event) => {
   renderVerifications();
   updateTrustBadge();
 
-  if (!useAiCheck()) {
-    newPost.verification = {
-      type: "mixed",
-      label: "Ücretsiz limit doldu",
-      confidence: 40,
-      truth: "Bugünkü ücretsiz gerçek AI doğrulama hakkı doldu. Savora bu paylaşımı şimdilik yerel ön kontrolle işaretledi; yarın yeni ücretsiz hak tanımlanır.",
-      sources: ["Ücretsiz günlük limit", "Yerel ön kontrol"]
-    };
-    newPost.verificationPending = false;
-    renderFeed();
-    renderVerifications();
-    if (submitButton) {
-      submitButton.disabled = false;
-      submitButton.textContent = originalButtonText;
-    }
-    return;
-  }
-
   const [verification, imageAnalysis] = await Promise.all([
     verifyPostRemote(newPost),
     analyzeImageRemote(newPost)
@@ -764,17 +657,6 @@ form?.addEventListener("submit", async (event) => {
       truth: verification.truth || "AI doğrulama sonucu alındı.",
       sources: verification.sources || ["AI doğrulama"]
     };
-  } else {
-    const aiMessage = verification?.message || "Canlı AI API yanıt vermedi. Vercel'de api klasörü, OPENAI_API_KEY ve son deploy kontrol edilmeli.";
-    newPost.verification = {
-      type: "mixed",
-      label: "AI bağlantısı yok",
-      confidence: 0,
-      truth: aiMessage.includes("quota") || aiMessage.includes("429")
-        ? "Ücretsiz AI sağlayıcısının günlük kotası veya yoğunluk limiti dolduğu için gerçek AI yanıtı alınamadı. Bir süre sonra tekrar denenebilir."
-        : aiMessage,
-      sources: ["Savora sistem kontrolü"]
-    };
   }
 
   if (imageAnalysis && !imageAnalysis.error) {
@@ -784,11 +666,6 @@ form?.addEventListener("submit", async (event) => {
   newPost.verificationPending = false;
   renderFeed();
   renderVerifications();
-
-  if (submitButton) {
-    submitButton.disabled = false;
-    submitButton.textContent = originalButtonText;
-  }
 });
 
 textarea?.addEventListener("input", updateCounter);
@@ -958,7 +835,7 @@ registerForm?.addEventListener("submit", (event) => {
     return;
   }
 
-  const user = { name, username, password, role: "member", aiLimit: dailyAiLimit };
+  const user = { name, username, password, role: "member" };
   users.push(user);
   saveUsers(users);
   showAuthMessage("Hesabın oluşturuldu.", "success");
@@ -1054,32 +931,6 @@ adminNavButton?.addEventListener("click", () => {
     adminPanel.hidden = false;
     renderAdminPanel();
   }
-});
-
-adminUserList?.addEventListener("change", (event) => {
-  const input = event.target.closest("[data-ai-limit-user]");
-
-  if (!input) {
-    return;
-  }
-
-  const username = input.dataset.aiLimitUser;
-  const nextLimit = Math.max(0, Math.min(999, Number(input.value || dailyAiLimit)));
-  const users = getUsers().map((user) => (
-    user.username === username ? { ...user, aiLimit: nextLimit } : user
-  ));
-
-  saveUsers(users);
-
-  if (currentUser?.username === username) {
-    currentUser = users.find((user) => user.username === username) || currentUser;
-  }
-
-  if (notificationText) {
-    notificationText.textContent = `${username} için günlük AI kredi limiti ${nextLimit} yapıldı.`;
-  }
-
-  renderAdminPanel();
 });
 
 closeAdminButton?.addEventListener("click", () => {
